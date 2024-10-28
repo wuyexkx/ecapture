@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -116,51 +115,65 @@ func (hr *HTTPResponse) Reset() {
 }
 
 func (hr *HTTPResponse) Display() []byte {
+	rawData, err := io.ReadAll(hr.response.Body)
+	rawLength := int64(len(rawData))
+	switch err {
+	case nil:
+		// Passed
+	case io.ErrUnexpectedEOF:
+		// If the server declared the Content-Length, Body is a LimitedReader
+		// Raw data length smaller than "Content-Length" will cause UnexpectedEOF error
+		// e.g. Head Method response with "Content-Length" header, raw data length is 0
+		if rawLength > 0 && hr.response.ContentLength > rawLength {
+			log.Println("[http response] Truncated response body")
+		}
+	default:
+		log.Println("[http response] Read response body error:", err)
+		return hr.reader.Bytes()
+	}
+	if hr.response.ContentLength < 0 {
+		log.Println("[http response] Chunked response body")
+	}
 	var reader io.ReadCloser
-	var err error
 	switch hr.response.Header.Get("Content-Encoding") {
 	case "gzip":
-		reader, err = gzip.NewReader(hr.response.Body)
-		if err != nil {
-			log.Println(err)
+		if rawLength == 0 {
 			break
 		}
-		gbuf, err := io.ReadAll(reader)
+		reader, err = gzip.NewReader(bytes.NewReader(rawData))
 		if err != nil {
-			log.Println(err)
+			log.Println("[http response] Create gzip reader error:", err)
 			break
 		}
-
-		hr.response.Body = io.NopCloser(bytes.NewReader(gbuf))
+		rawData, err = io.ReadAll(reader)
+		if err != nil {
+			log.Println("[http response] Uncompress gzip data error:", err)
+			break
+		}
 		// gzip uncompressed success
-		hr.response.ContentLength = int64(len(gbuf))
+		// hr.response.ContentLength = int64(len(raw))
 		hr.packerType = PacketTypeGzip
 		defer reader.Close()
 	default:
 		//reader = hr.response.Body
 		hr.packerType = PacketTypeNull
 		//TODO for debug
-		//return []byte("")
 	}
-	headerMap := bytes.NewBufferString("")
-	for k, v := range hr.response.Header {
-		headerMap.WriteString(fmt.Sprintf("\t%s\t=>\t%s\n", k, v))
-	}
-	//log.Printf("HTTPS Headers \n\t%s", headerMap.String())
-
-	var b []byte
-	var e error
-
-	if hr.response.ContentLength == 0 {
-		b, e = httputil.DumpResponse(hr.response, false)
-	} else {
-		b, e = httputil.DumpResponse(hr.response, true)
-	}
-	if e != nil {
-		log.Println("[http response] DumpResponse error:", e)
+	//	headerMap := bytes.NewBufferString("")
+	//	for k, v := range hr.response.Header {
+	//		headerMap.WriteString(fmt.Sprintf("\t%s\t=>\t%s\n", k, v))
+	//	}
+	b, err := httputil.DumpResponse(hr.response, false)
+	if err != nil {
+		log.Println("[http response] DumpResponse error:", err)
 		return hr.reader.Bytes()
 	}
-	return b
+	var buff bytes.Buffer
+	buff.Write(b)
+	if rawLength > 0 {
+		buff.Write(rawData)
+	}
+	return buff.Bytes()
 }
 
 func init() {

@@ -20,6 +20,7 @@ import (
 	"debug/elf"
 	"debug/gosym"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -31,21 +32,15 @@ const (
 	GoTlsReadFunc         = "crypto/tls.(*Conn).Read"
 	GoTlsWriteFunc        = "crypto/tls.(*Conn).writeRecordLocked"
 	GoTlsMasterSecretFunc = "crypto/tls.(*Config).writeKeyLog"
-
-	/*
-		我是通过IDA静态分析符号发现`crypto/tls.(*Conn).Read`的地址是`46EE50`。用程序计算出来的总是比这个数字少了`0x120` ，通过分析其他多个编译的程序，发现差值总是`0x120`。
-		所以，我定义了一个常量，增加到程序计算的地址上。但是我不知道原因，如果你知道，请告诉我。更多信息见：https://github.com/gojue/ecapture/pull/512
-	*/
-	IdaProOffset = 0x120
 )
 
 var (
-	ErrorGoBINNotFound           = errors.New("The executable program (compiled by Golang) was not found")
-	ErrorSymbolEmpty             = errors.New("symbol is empty")
-	ErrorSymbolNotFound          = errors.New("symbol not found")
-	ErrorSymbolNotFoundFromTable = errors.New("symbol not found from table")
-	ErrorNoRetFound              = errors.New("no RET instructions found")
-	ErrorNoRetFoundFromSymTabFun = errors.New("no RET instructions found from golang symbol table with Fun")
+	ErrorGoBINNotFound            = errors.New("The executable program (compiled by Golang) was not found")
+	ErrorSymbolEmpty              = errors.New("symbol is empty")
+	ErrorSymbolNotFound           = errors.New("symbol not found")
+	ErrorSymbolNotFoundFromTable  = errors.New("symbol not found from table")
+	ErrorNoRetFound               = errors.New("no RET instructions found")
+	ErrorNoFuncFoundFromSymTabFun = errors.New("no function found from golang symbol table with Func Name")
 )
 
 // From go/src/debug/gosym/pclntab.go
@@ -80,7 +75,7 @@ type FuncOffsets struct {
 
 // GoTLSConfig represents configuration for Go SSL probe
 type GoTLSConfig struct {
-	eConfig
+	BaseConfig
 	Path                  string    `json:"path"`       // golang application path to binary built with Go toolchain.
 	PcapFile              string    `json:"pcapFile"`   // pcapFile  the  raw  packets  to file rather than parsing and printing them out.
 	KeylogFile            string    `json:"keylogFile"` // keylogFile  The file stores SSL/TLS keys, and eCapture captures these keys during encrypted traffic communication and saves them to the file.
@@ -277,7 +272,6 @@ func (gc *GoTLSConfig) checkModel() (string, error) {
 		if gc.Ifname == "" {
 			return "", errors.New("'pcap' model used, please used -i flag to set ifname value.")
 		}
-		fmt.Println(gc.Ifname)
 	default:
 		m = TlsCaptureModelText
 	}
@@ -306,13 +300,22 @@ func (gc *GoTLSConfig) ReadTable() (*gosym.Table, error) {
 	// Find .gopclntab by magic number even if there is no section label
 	magic := magicNumber(gc.Buildinfo.GoVersion)
 	pclntabIndex := bytes.Index(tableData, magic)
-	//fmt.Printf("Buildinfo :%v, magic:%x, pclntabIndex:%d offset:%x , section:%v \n", gc.Buildinfo, magic, pclntabIndex, section.Offset, section)
 	if pclntabIndex < 0 {
 		return nil, fmt.Errorf("could not find magic number in %s ", gc.Path)
 	}
 	tableData = tableData[pclntabIndex:]
-
-	addr := gc.goElf.Section(".text").Addr
+	var addr uint64
+	{
+		// get textStart from pclntable
+		// please see https://go-review.googlesource.com/c/go/+/366695
+		// tableData
+		ptrSize := uint32(tableData[7])
+		if ptrSize == 4 {
+			addr = uint64(binary.LittleEndian.Uint32(tableData[8+2*ptrSize:]))
+		} else {
+			addr = binary.LittleEndian.Uint64(tableData[8+2*ptrSize:])
+		}
+	}
 	lineTable := gosym.NewLineTable(tableData, addr)
 	symTable, err := gosym.NewTable([]byte{}, lineTable)
 	if err != nil {
@@ -335,8 +338,9 @@ func (gc *GoTLSConfig) findRetOffsetsPie(lfunc string) ([]int, error) {
 		if prog.Type != elf.PT_LOAD || (prog.Flags&elf.PF_X) == 0 {
 			continue
 		}
+		// via https://github.com/golang/go/blob/a65a2bbd8e58cd77dbff8a751dbd6079424beb05/src/cmd/internal/objfile/elf.go#L174
 		data := make([]byte, funcLen)
-		_, err = prog.ReadAt(data, int64(address))
+		_, err = prog.ReadAt(data, int64(address-prog.Vaddr))
 		if err != nil {
 			return offsets, fmt.Errorf("finding function return: %w", err)
 		}
@@ -355,24 +359,15 @@ func (gc *GoTLSConfig) findRetOffsetsPie(lfunc string) ([]int, error) {
 func (gc *GoTLSConfig) findPieSymbolAddr(lfunc string) (uint64, error) {
 	f := gc.goSymTab.LookupFunc(lfunc)
 	if f == nil {
-		return 0, errors.New("Cant found symbol address on pie model.")
+		return 0, ErrorNoFuncFoundFromSymTabFun
 	}
-	var err error
-	for _, prog := range gc.goElf.Progs {
-		if prog.Type != elf.PT_LOAD || (prog.Flags&elf.PF_X) == 0 {
-			continue
-		}
-		// For more info on this calculation: stackoverflow.com/a/40249502
-		if prog.Vaddr <= f.Value && f.Value < (prog.Vaddr+prog.Memsz) {
-			funcLen := f.End - f.Entry
-			data := make([]byte, funcLen)
-			address := f.Value - prog.Vaddr + prog.Off + IdaProOffset
-			_, err = prog.ReadAt(data, int64(address))
-			if err != nil {
-				return 0, fmt.Errorf("search function return: %w", err)
-			}
-			return address, nil
-		}
+	return f.Value, nil
+}
+
+func (gc *GoTLSConfig) Bytes() []byte {
+	b, e := json.Marshal(gc)
+	if e != nil {
+		return []byte{}
 	}
-	return 0, ErrorNoRetFoundFromSymTabFun
+	return b
 }

@@ -17,15 +17,16 @@ package module
 import (
 	"bytes"
 	"context"
-	"ecapture/assets"
-	"ecapture/user/config"
-	"ecapture/user/event"
 	"errors"
 	"fmt"
 	"github.com/cilium/ebpf"
 	manager "github.com/gojue/ebpfmanager"
+	"github.com/gojue/ecapture/assets"
+	"github.com/gojue/ecapture/user/config"
+	"github.com/gojue/ecapture/user/event"
+	"github.com/rs/zerolog"
 	"golang.org/x/sys/unix"
-	"log"
+	"io"
 	"math"
 	"os"
 	"path"
@@ -40,8 +41,11 @@ type MGnutlsProbe struct {
 }
 
 // 对象初始化
-func (g *MGnutlsProbe) Init(ctx context.Context, logger *log.Logger, conf config.IConfig) error {
-	g.Module.Init(ctx, logger, conf)
+func (g *MGnutlsProbe) Init(ctx context.Context, logger *zerolog.Logger, conf config.IConfig, ecw io.Writer) error {
+	err := g.Module.Init(ctx, logger, conf, ecw)
+	if err != nil {
+		return err
+	}
 	g.conf = conf
 	g.Module.SetChild(g)
 	g.eventMaps = make([]*ebpf.Map, 0, 2)
@@ -60,9 +64,10 @@ func (g *MGnutlsProbe) start() error {
 
 	// fetch ebpf assets
 	var bpfFileName = g.geteBPFName("user/bytecode/gnutls_kern.o")
-	g.logger.Printf("%s\tBPF bytecode filename:%s\n", g.Name(), bpfFileName)
+	g.logger.Info().Str("bytecode filename", bpfFileName).Msg("BPF bytecode loaded")
 	byteBuf, err := assets.Asset(bpfFileName)
 	if err != nil {
+		g.logger.Error().Err(err).Strs("bytecode files", assets.AssetNames()).Msg("couldn't find bpf bytecode file")
 		return fmt.Errorf("couldn't find asset %v", err)
 	}
 
@@ -109,9 +114,9 @@ func (g *MGnutlsProbe) constantEditor() []manager.ConstantEditor {
 	}
 
 	if g.conf.GetPid() <= 0 {
-		g.logger.Printf("%s\ttarget all process. \n", g.Name())
+		g.logger.Info().Msg("target all process.")
 	} else {
-		g.logger.Printf("%s\ttarget PID:%d \n", g.Name(), g.conf.GetPid())
+		g.logger.Info().Uint64("target pid", g.conf.GetPid()).Msg("target process.")
 	}
 	return editor
 }
@@ -130,8 +135,7 @@ func (g *MGnutlsProbe) setupManagers() error {
 		return err
 	}
 
-	g.logger.Printf("%s\tHOOK type:%d, binrayPath:%s\n", g.Name(), g.conf.(*config.GnutlsConfig).ElfType, binaryPath)
-
+	g.logger.Info().Str("binaryPath", binaryPath).Uint8("elfType", g.conf.(*config.GnutlsConfig).ElfType).Msg("gnutls binary path")
 	g.bpfManager = &manager.Manager{
 		Probes: []*manager.Probe{
 			{
@@ -214,8 +218,12 @@ func (g *MGnutlsProbe) Events() []*ebpf.Map {
 }
 
 func init() {
+	RegisteFunc(NewGnutlsProbe)
+}
+
+func NewGnutlsProbe() IModule {
 	mod := &MGnutlsProbe{}
 	mod.name = ModuleNameGnutls
 	mod.mType = ProbeTypeUprobe
-	Register(mod)
+	return mod
 }

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"ecapture/pkg/util/ethernet"
-	"ecapture/user/event"
+	"github.com/gojue/ecapture/pkg/util/ethernet"
+	"github.com/gojue/ecapture/user/event"
 
 	"github.com/cilium/ebpf"
 	manager "github.com/gojue/ebpfmanager"
@@ -97,7 +97,7 @@ func (t *MTCProbe) dumpTcSkb(tcEvent *event.TcSkbEvent) error {
 		err, p := t.writePid(tcEvent)
 		if err == nil {
 			payload = p
-			// fmt.Printf("pid:%d, comm:%s, cmdline:%s\n", tcEvent.Pid, tcEvent.Comm, tcEvent.Cmdline)
+			//t.logger.Debug().Uint32("pid", tcEvent.Pid).Str("comm", fmt.Sprintf("%s", tcEvent.Comm)).Str("cmdline", fmt.Sprintf("%s", tcEvent.Cmdline)).Msg("dumpTcSkb")
 		}
 	}
 	return t.writePacket(uint32(len(payload)), time.Unix(0, int64(timeStamp)), payload)
@@ -112,7 +112,7 @@ func (t *MTCProbe) writePid(tcEvent *event.TcSkbEvent) (error, []byte) {
 
 	oldEthLayer := ethPacket.Layers()[0].(*layers.Ethernet)
 
-	// subtract oldethelayer from the begining of ethpacket
+	// subtract oldethelayer from the beginning of ethpacket
 	restOfLayers := ethPacket.Layers()[1:]
 	remainder := []byte{}
 	for _, layer := range restOfLayers {
@@ -153,6 +153,9 @@ func (t *MTCProbe) savePcapng() (i int, err error) {
 	if err != nil {
 		return
 	}
+
+	// reset master key buffer, fix issue #542
+	t.masterKeyBuffer.Reset()
 	t.tcPacketLocker.Lock()
 	defer func() {
 		t.tcPacketLocker.Unlock()
@@ -260,13 +263,13 @@ func (t *MTCProbe) savePcapngSslKeyLog(sslKeyLog []byte) (err error) {
 // ServePcap is used to serve pcapng file
 func (t *MTCProbe) ServePcap() {
 	ti := time.NewTicker(2 * time.Second)
-	t.logger.Printf("%s\tsaving pcapng file: %s\n", t.Name(), t.pcapngFilename)
+	t.logger.Info().Str("pcapng path", t.pcapngFilename).Msg("packets saved into pcapng file.")
 	var allCount int
 	defer func() {
 		if allCount == 0 {
-			t.logger.Printf("%s\tnothing captured, please check your network interface, see \"ecapture tls -h\" for more information.", t.Name())
+			t.logger.Warn().Msg("nothing captured, please check your network interface, see \"ecapture tls -h\" for more information.")
 		} else {
-			t.logger.Printf("%s\t save %d packets into pcapng file.\n", t.Name(), allCount)
+			t.logger.Info().Int("count", allCount).Msg("packets saved into pcapng file.")
 		}
 		ti.Stop()
 	}()
@@ -280,9 +283,9 @@ func (t *MTCProbe) ServePcap() {
 			}
 			n, e := t.savePcapng()
 			if e != nil {
-				t.logger.Printf("%s\tsave pcapng err:%s, maybe %d packets lost.\n", t.Name(), e.Error(), i)
+				t.logger.Warn().Err(e).Int("count", i).Msg("save pcapng err, maybe some packets lost.")
 			} else {
-				t.logger.Printf("%s\tsave pcapng success, count:%d\n", t.Name(), n)
+				t.logger.Info().Int("count", n).Msg("packets saved into pcapng file.")
 				allCount += n
 			}
 
@@ -292,7 +295,7 @@ func (t *MTCProbe) ServePcap() {
 		case packet, ok := <-t.tcPacketsChan:
 			// append tcPackets to tcPackets Array from tcPacketsChan
 			if !ok {
-				t.logger.Printf("%s\ttcPacketsChan closed.\n", t.Name())
+				t.logger.Warn().Msg("tcPacketsChan closed.")
 			}
 			t.tcPackets = append(t.tcPackets, packet)
 			i++
@@ -302,9 +305,9 @@ func (t *MTCProbe) ServePcap() {
 			}
 			n, e := t.savePcapng()
 			if e != nil {
-				t.logger.Printf("%s\tsave pcapng err:%s, maybe %d packets lost.\n", t.Name(), e.Error(), i)
+				t.logger.Info().Err(e).Int("count", i).Msg("save pcapng err, maybe some packets lost.")
 			} else {
-				t.logger.Printf("%s\tsave pcapng success, count:%d\n", t.Name(), n)
+				t.logger.Info().Int("count", n).Msg("packets saved into pcapng file.")
 				allCount += n
 			}
 			return

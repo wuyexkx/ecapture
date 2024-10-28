@@ -1,11 +1,11 @@
 package module
 
 import (
-	"ecapture/user/config"
-	"ecapture/user/event"
 	"errors"
 	"github.com/cilium/ebpf"
 	manager "github.com/gojue/ebpfmanager"
+	"github.com/gojue/ecapture/user/config"
+	"github.com/gojue/ecapture/user/event"
 	"golang.org/x/sys/unix"
 	"math"
 	"os"
@@ -14,7 +14,7 @@ import (
 )
 
 func (m *MOpenSSLProbe) setupManagersText() error {
-	var libPthread, binaryPath, sslVersion string
+	var binaryPath, sslVersion string
 	sslVersion = m.conf.(*config.OpensslConfig).SslVersion
 	sslVersion = strings.ToLower(sslVersion)
 	switch m.conf.(*config.OpensslConfig).ElfType {
@@ -35,20 +35,12 @@ func (m *MOpenSSLProbe) setupManagersText() error {
 		}
 	}
 
-	libPthread = m.conf.(*config.OpensslConfig).Pthread
-	if libPthread == "" {
-		//libPthread = "/lib/x86_64-linux-gnu/libpthread.so.0"
-		m.logger.Printf("%s\tlibPthread path not found, IP info lost.\n", m.Name())
-	}
-
 	_, err := os.Stat(binaryPath)
 	if err != nil {
 		return err
 	}
 
-	m.logger.Printf("%s\tHOOK type:%d, binrayPath:%s\n", m.Name(), m.conf.(*config.OpensslConfig).ElfType, binaryPath)
-	m.logger.Printf("%s\tHook masterKey function:%s\n", m.Name(), m.masterHookFuncs)
-
+	m.logger.Info().Str("binrayPath", binaryPath).Uint8("ElfType", m.conf.(*config.OpensslConfig).ElfType).Strs("Functions", m.masterHookFuncs).Msg("Hook masterKey function")
 	m.bpfManager = &manager.Manager{
 		Probes: []*manager.Probe{
 
@@ -78,12 +70,18 @@ func (m *MOpenSSLProbe) setupManagersText() error {
 			},
 
 			// --------------------------------------------------
-			//{
-			//	Section:          "uprobe/connect",
-			//	EbpfFuncName:     "probe_connect",
-			//	AttachToFuncName: "connect",
-			//	BinaryPath:       libPthread,
-			//},
+			{
+				Section:          "kprobe/sys_connect",
+				EbpfFuncName:     "probe_connect",
+				AttachToFuncName: "__sys_connect",
+				UID:              "kprobe_sys_connect",
+			},
+			{
+				Section:          "kprobe/sys_connect",
+				EbpfFuncName:     "probe_connect",
+				AttachToFuncName: "__sys_accept4",
+				UID:              "kprobe_sys_accept4",
+			},
 
 			// --------------------------------------------------
 
@@ -133,21 +131,6 @@ func (m *MOpenSSLProbe) setupManagersText() error {
 		},
 	}
 
-	if libPthread != "" {
-		// detect libpthread.so path
-		_, err = os.Stat(libPthread)
-		if err == nil {
-			m.logger.Printf("%s\tlibPthread:%s\n", m.Name(), libPthread)
-			m.bpfManager.Probes = append(m.bpfManager.Probes, &manager.Probe{
-				Section:          "uprobe/connect",
-				EbpfFuncName:     "probe_connect",
-				AttachToFuncName: "connect",
-				BinaryPath:       libPthread,
-				UID:              "uprobe_connect",
-			})
-		}
-	}
-
 	m.bpfManagerOptions = manager.Options{
 		DefaultKProbeMaxActive: 512,
 
@@ -167,7 +150,7 @@ func (m *MOpenSSLProbe) setupManagersText() error {
 		// 填充 RewriteContants 对应map
 		m.bpfManagerOptions.ConstantEditors = m.constantEditor()
 	} else {
-		m.logger.Printf("%s\tYour kernel version is less than 5.2, the following parameters will be ignored:[target_pid, target_uid, target_port]\n", m.Name())
+		m.logger.Warn().Msg("Your kernel version is less than 5.2, GlobalVar is disabled, the following parameters will be ignored:[target_pid, target_uid, target_port]")
 	}
 	return nil
 }

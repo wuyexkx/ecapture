@@ -14,10 +14,12 @@
 
 package config
 
-// 最终使用openssl参数
+import "encoding/json"
+
+// GnutlsConfig 最终使用openssl参数
 type GnutlsConfig struct {
-	eConfig
-	//Curlpath string `json:"curlpath"` //curl的文件路径
+	BaseConfig
+	//Curl path string `json:"curlpath"` //curl的文件路径
 	Gnutls  string `json:"gnutls"`
 	ElfType uint8  //
 }
@@ -26,4 +28,12 @@ func NewGnutlsConfig() *GnutlsConfig {
 	config := &GnutlsConfig{}
 	config.PerCpuMapSize = DefaultMapSizePerCpu
 	return config
+}
+
+func (gc *GnutlsConfig) Bytes() []byte {
+	b, e := json.Marshal(gc)
+	if e != nil {
+		return []byte{}
+	}
+	return b
 }

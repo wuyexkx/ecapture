@@ -80,6 +80,7 @@ type SSLDataEvent struct {
 	Fd        uint32            `json:"fd"`
 	Version   int32             `json:"version"`
 	Addr      string
+	BioType   uint32
 }
 
 func (se *SSLDataEvent) Decode(payload []byte) (err error) {
@@ -111,6 +112,9 @@ func (se *SSLDataEvent) Decode(payload []byte) (err error) {
 	if err = binary.Read(buf, binary.LittleEndian, &se.Version); err != nil {
 		return
 	}
+	if err = binary.Read(buf, binary.LittleEndian, &se.BioType); err != nil {
+		return
+	}
 
 	decodedKtime, err := DecodeKtime(int64(se.Timestamp), true)
 	if err == nil {
@@ -120,7 +124,7 @@ func (se *SSLDataEvent) Decode(payload []byte) (err error) {
 }
 
 func (se *SSLDataEvent) GetUUID() string {
-	return fmt.Sprintf("%d_%d_%s_%d_%d", se.Pid, se.Tid, CToGoString(se.Comm[:]), se.Fd, se.DataType)
+	return fmt.Sprintf("%d_%d_%s_%d_%d_%s", se.Pid, se.Tid, CToGoString(se.Comm[:]), se.Fd, se.DataType, se.Addr)
 }
 
 func (se *SSLDataEvent) Payload() []byte {
@@ -178,7 +182,7 @@ func (se *SSLDataEvent) String() string {
 
 func (se *SSLDataEvent) Clone() IEventStruct {
 	event := new(SSLDataEvent)
-	event.eventType = EventTypeEventProcessor
+	event.eventType = EventTypeModuleData //EventTypeEventProcessor
 	return event
 }
 

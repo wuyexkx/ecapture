@@ -47,6 +47,7 @@
 ///////// for TC & XDP ebpf programs in tc.h
 #define TC_ACT_OK 0
 #define ETH_P_IP 0x0800 /* Internet Protocol packet        */
+#define ETH_P_IPV6 0x86DD
 #define SKB_MAX_DATA_SIZE 2048
 
 // .rodata section bug via : https://github.com/gojue/ecapture/issues/39
@@ -57,6 +58,15 @@ const volatile u64 target_pid = 0;
 const volatile u64 target_uid = 0;
 const volatile u64 target_errno = BASH_ERRNO_DEFAULT;
 #else
+#endif
+
+// fix  4.19.91-27.7.al7.x86_64/source/include/linux/kernel.h:140:9: warning: 'roundup' macro redefined
+#ifndef roundup
+#define roundup(x, y)                    \
+    ({                                   \
+        typeof(y) __y = y;               \
+        (((x) + (__y - 1)) / __y) * __y; \
+    })
 #endif
 
 char __license[] SEC("license") = "Dual MIT/GPL";

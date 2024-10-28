@@ -16,21 +16,22 @@ package module
 
 import (
 	"debug/elf"
-	"ecapture/user/config"
 	"fmt"
+	"github.com/gojue/ecapture/user/config"
 	"os"
 	"regexp"
 	"strings"
 )
 
 const (
-	LinuxDefauleFilename_1_0_2 = "linux_default_1_0_2"
-	LinuxDefauleFilename_1_1_0 = "linux_default_1_1_0"
-	LinuxDefauleFilename_1_1_1 = "linux_default_1_1_1"
-	LinuxDefauleFilename_3_0   = "linux_default_3_0"
-	LinuxDefauleFilename_3_1   = "linux_default_3_0"
-	LinuxDefauleFilename_3_2_0 = "linux_default_3_2"
-	AndroidDefauleFilename     = "android_default"
+	Linuxdefaulefilename102 = "linux_default_1_0_2"
+	Linuxdefaulefilename110 = "linux_default_1_1_0"
+	Linuxdefaulefilename111 = "linux_default_1_1_1"
+	Linuxdefaulefilename30  = "linux_default_3_0"
+	Linuxdefaulefilename31  = "linux_default_3_0"
+	Linuxdefaulefilename320 = "linux_default_3_2"
+	Linuxdefaulefilename330 = "linux_default_3_3"
+	AndroidDefauleFilename  = "android_default"
 
 	OpenSslVersionLen = 30 // openssl version string length
 )
@@ -38,35 +39,44 @@ const (
 const (
 	MaxSupportedOpenSSL102Version = 'u'
 	MaxSupportedOpenSSL110Version = 'l'
-	MaxSupportedOpenSSL111Version = 'u'
-	MaxSupportedOpenSSL30Version  = 12
-	MaxSupportedOpenSSL31Version  = 4
-	MaxSupportedOpenSSL32Version  = 0
+	MaxSupportedOpenSSL111Version = 'w'
+	MaxSupportedOpenSSL30Version  = 15
+	MaxSupportedOpenSSL31Version  = 7
+	SupportedOpenSSL32Version2    = 2 // openssl 3.2.0 ~ 3.2.2
+	MaxSupportedOpenSSL32Version  = 3 // openssl 3.2.3 ~ newer
+	SupportedOpenSSL33Version1    = 1 // openssl 3.3.0 ~ 3.3.1
+	MaxSupportedOpenSSL33Version  = 2 // openssl 3.3.2
 )
 
 // initOpensslOffset initial BpfMap
 func (m *MOpenSSLProbe) initOpensslOffset() {
 	m.sslVersionBpfMap = map[string]string{
 		// openssl 1.0.2*
-		LinuxDefauleFilename_1_0_2: "openssl_1_0_2a_kern.o",
+		Linuxdefaulefilename102: "openssl_1_0_2a_kern.o",
 
 		// openssl 1.1.0*
-		LinuxDefauleFilename_1_1_0: "openssl_1_1_0a_kern.o",
+		Linuxdefaulefilename110: "openssl_1_1_0a_kern.o",
 
 		// openssl 1.1.1*
-		LinuxDefauleFilename_1_1_1: "openssl_1_1_1j_kern.o",
+		Linuxdefaulefilename111: "openssl_1_1_1j_kern.o",
 
 		// openssl 3.0.* and openssl 3.1.*
-		LinuxDefauleFilename_3_0: "openssl_3_0_0_kern.o",
+		Linuxdefaulefilename30: "openssl_3_0_0_kern.o",
 
 		// openssl 3.2.*
-		LinuxDefauleFilename_3_2_0: "openssl_3_2_0_kern.o",
+		Linuxdefaulefilename320: "openssl_3_2_0_kern.o",
 
 		// boringssl
+		// git repo: https://android.googlesource.com/platform/external/boringssl/+/refs/heads/android12-release
 		"boringssl 1.1.1":      "boringssl_a_13_kern.o",
 		"boringssl_a_13":       "boringssl_a_13_kern.o",
 		"boringssl_a_14":       "boringssl_a_14_kern.o",
 		AndroidDefauleFilename: "boringssl_a_13_kern.o",
+
+		// non-Android boringssl
+		// "boringssl na" is a special version for non-android
+		// git repo: https://github.com/google/boringssl
+		"boringssl na": "boringssl_na_kern.o",
 	}
 
 	// in openssl source files, there are 4 offset groups for all 1.1.1* version.
@@ -87,24 +97,40 @@ func (m *MOpenSSLProbe) initOpensslOffset() {
 		m.sslVersionBpfMap["openssl 1.1.1"+string(ch)] = "openssl_1_1_1j_kern.o"
 	}
 
-	// openssl 3.0.0 - 3.0.12
+	// openssl 3.0.0 - 3.0.15
 	for ch := 0; ch <= MaxSupportedOpenSSL30Version; ch++ {
 		m.sslVersionBpfMap[fmt.Sprintf("openssl 3.0.%d", ch)] = "openssl_3_0_0_kern.o"
 	}
 
 	// openssl 3.1.0 - 3.1.4
 	for ch := 0; ch <= MaxSupportedOpenSSL31Version; ch++ {
-		m.sslVersionBpfMap[fmt.Sprintf("openssl 3.1.%d", ch)] = "openssl_3_0_0_kern.o"
+		// The OpenSSL 3.0 series is the same as the 3.1 series of offsets
+		m.sslVersionBpfMap[fmt.Sprintf("openssl 3.1.%d", ch)] = "openssl_3_1_0_kern.o"
 	}
 
 	// openssl 3.2.0
-	for ch := 0; ch <= MaxSupportedOpenSSL32Version; ch++ {
+	for ch := 0; ch <= SupportedOpenSSL32Version2; ch++ {
 		m.sslVersionBpfMap[fmt.Sprintf("openssl 3.2.%d", ch)] = "openssl_3_2_0_kern.o"
+	}
+
+	// openssl 3.2.3 - newer
+	for ch := 3; ch <= MaxSupportedOpenSSL32Version; ch++ {
+		m.sslVersionBpfMap[fmt.Sprintf("openssl 3.2.%d", ch)] = "openssl_3_2_3_kern.o"
+	}
+
+	// openssl 3.3.0 - 3.3.1
+	for ch := 0; ch <= SupportedOpenSSL33Version1; ch++ {
+		m.sslVersionBpfMap[fmt.Sprintf("openssl 3.3.%d", ch)] = "openssl_3_3_0_kern.o"
+	}
+
+	// openssl 3.3.2
+	for ch := 2; ch <= MaxSupportedOpenSSL33Version; ch++ {
+		m.sslVersionBpfMap[fmt.Sprintf("openssl 3.3.%d", ch)] = "openssl_3_3_2_kern.o"
 	}
 
 	// openssl 1.1.0a - 1.1.0l
 	for ch := 'a'; ch <= MaxSupportedOpenSSL110Version; ch++ {
-		m.sslVersionBpfMap["openssl 1.1.0"+string(ch)] = "openssl_1_1_1a_kern.o"
+		m.sslVersionBpfMap["openssl 1.1.0"+string(ch)] = "openssl_1_1_0a_kern.o"
 	}
 
 	// openssl 1.0.2a - 1.0.2u
@@ -134,7 +160,7 @@ func (m *MOpenSSLProbe) detectOpenssl(soPath string) error {
 	s := r.Section(".rodata")
 	if s == nil {
 		// not found
-		return nil
+		return fmt.Errorf("detect openssl version failed, cant read .rodata section from %s", soPath)
 	}
 
 	sectionOffset := int64(s.Offset)
@@ -164,10 +190,11 @@ func (m *MOpenSSLProbe) detectOpenssl(soPath string) error {
 	buf := make([]byte, 1024*1024) // 1Mb
 	totalReadCount := 0
 	for totalReadCount < int(sectionSize) {
-		readCount, err := f.Read(buf)
+		var readCount int
+		readCount, err = f.Read(buf)
 
 		if err != nil {
-			m.logger.Printf("%s\t[f.Read] Error:%v\t", m.Name(), err)
+			m.logger.Error().Err(err).Msg("read openssl version failed")
 			break
 		}
 
@@ -181,9 +208,9 @@ func (m *MOpenSSLProbe) detectOpenssl(soPath string) error {
 			break
 		}
 
-		// Substracting OpenSslVersionLen from totalReadCount,
+		// Subtracting OpenSslVersionLen from totalReadCount,
 		// to cover the edge-case in which openssl version string
-		// could be split into two buffers. Substraction will,
+		// could be split into two buffers. Subtraction will,
 		// makes sure that last 30 bytes of previous buffer are considered.
 		totalReadCount += readCount - OpenSslVersionLen
 
@@ -196,14 +223,15 @@ func (m *MOpenSSLProbe) detectOpenssl(soPath string) error {
 
 	}
 
-	f.Close()
-	buf = nil
+	_ = f.Close()
+	//buf = buf[:0]
 
 	var bpfFile string
 	var found bool
 	if versionKey != "" {
 		versionKeyLower := strings.ToLower(versionKey)
-		m.logger.Printf("%s\torigin version:%s, as key:%s", m.Name(), versionKey, versionKeyLower)
+		m.conf.(*config.OpensslConfig).SslVersion = versionKeyLower
+		m.logger.Info().Str("origin versionKey", versionKey).Str("versionKeyLower", versionKeyLower).Msg("OpenSSL/BoringSSL version found")
 		// find the sslVersion bpfFile from sslVersionBpfMap
 		bpfFile, found = m.sslVersionBpfMap[versionKeyLower]
 		if found {
@@ -224,18 +252,18 @@ func (m *MOpenSSLProbe) detectOpenssl(soPath string) error {
 		bpfFile, found = m.sslVersionBpfMap[bpfFildAndroid]
 		if found {
 			m.sslBpfFile = bpfFile
-			m.logger.Printf("%s\tOpenSSL/BoringSSL version found, ro.build.version.release=%s\n", m.Name(), androidVer)
+			m.logger.Info().Str("BoringSSL Version", androidVer).Msg("OpenSSL/BoringSSL version found")
 		} else {
 			bpfFile, _ = m.sslVersionBpfMap[AndroidDefauleFilename]
-			m.logger.Printf("%s\tOpenSSL/BoringSSL version not found, used default version :%s\n", m.Name(), AndroidDefauleFilename)
+			m.logger.Warn().Str("BoringSSL Version", AndroidDefauleFilename).Msg("OpenSSL/BoringSSL version not found, used default version")
 		}
 	} else {
 		if strings.Contains(soPath, "libssl.so.3") {
-			bpfFile, _ = m.sslVersionBpfMap[LinuxDefauleFilename_3_0]
-			m.logger.Printf("%s\tOpenSSL/BoringSSL version not found from shared library file, used default version:%s\n", m.Name(), LinuxDefauleFilename_3_0)
+			bpfFile, _ = m.sslVersionBpfMap[Linuxdefaulefilename30]
+			m.logger.Warn().Str("OpenSSL Version", Linuxdefaulefilename30).Msg("OpenSSL/BoringSSL version not found from shared library file, used default version")
 		} else {
-			bpfFile, _ = m.sslVersionBpfMap[LinuxDefauleFilename_1_1_1]
-			m.logger.Printf("%s\tOpenSSL/BoringSSL version not found from shared library file, used default version:%s\n", m.Name(), LinuxDefauleFilename_1_1_1)
+			bpfFile, _ = m.sslVersionBpfMap[Linuxdefaulefilename111]
+			m.logger.Warn().Str("OpenSSL Version", Linuxdefaulefilename111).Msg("OpenSSL/BoringSSL version not found from shared library file, used default version")
 		}
 	}
 	m.sslBpfFile = bpfFile

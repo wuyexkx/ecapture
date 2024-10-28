@@ -17,7 +17,7 @@ jobs:
       - name: Install Compilers
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential pkgconf libelf-dev llvm-9 clang-9 linux-tools-common linux-tools-generic gcc
+          sudo apt-get install --yes build-essential pkgconf libelf-dev llvm-9 clang-9 linux-tools-common linux-tools-generic gcc gcc-aarch64-linux-gnu libssl-dev
           for tool in "clang" "llc" "llvm-strip"
           do
             sudo rm -f /usr/bin/$tool
@@ -32,16 +32,15 @@ jobs:
         run: |
           make clean
           make env
-          make nocore -j4
+          DEBUG=1 make nocore -j4
           cd ./lib/libpcap/ && sudo make install
           cd $GITHUB_WORKSPACE
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
           args: --disable-all -E errcheck -E staticcheck
           skip-cache: true
-          skip-pkg-cache: true
-          skip-build-cache: true
+          problem-matchers: true
       - name: Build NOCORE
         run: |
           make clean
@@ -60,40 +59,57 @@ jobs:
       - name: Install Compilers
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential pkgconf libelf-dev llvm-14 clang-14 linux-tools-common linux-tools-generic gcc
+          sudo apt-get install --yes build-essential pkgconf libelf-dev llvm-14 clang-14 flex bison linux-tools-common linux-tools-generic gcc gcc-aarch64-linux-gnu libssl-dev linux-source
           for tool in "clang" "llc" "llvm-strip"
           do
             sudo rm -f /usr/bin/$tool
             sudo ln -s /usr/bin/$tool-14 /usr/bin/$tool
           done
+          cd /usr/src
+          source_file=$(find . -maxdepth 1 -name "*linux-source*.tar.bz2")
+          source_dir=$(echo "$source_file" | sed 's/\.tar\.bz2//g')  
+          sudo tar -xf $source_file
+          cd $source_dir
+          test -f .config || sudo make oldconfig
+          sudo make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- prepare V=0
+          ls -al /usr/src/$source_dir
         shell: bash
       - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: 0
-      - name: Build
+      - name: Build CO-RE
         run: |
           make clean
           make env
-          make -j8
+          DEBUG=1 make -j8
           cd ./lib/libpcap/ && sudo make install
           cd $GITHUB_WORKSPACE
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
           args: --disable-all -E errcheck -E staticcheck
           skip-cache: true
-          skip-pkg-cache: true
-          skip-build-cache: true
-      - name: Build NOCORE
+          problem-matchers: true
+      - name: Build non-CO-RE
         run: |
           make clean
           make env
           make nocore
+      - name: Build CO-RE (Cross-Compilation)
+        run: |
+          make clean
+          CROSS_ARCH=arm64 make env
+          CROSS_ARCH=arm64 make -j8
+      - name: Build non-CO-RE (Cross-Compilation/Android)
+        run: |
+          make clean
+          CROSS_ARCH=arm64 make env
+          ANDROID=1 CROSS_ARCH=arm64 make nocore -j8
       - name: Test
         run: go test -v -race ./...
 
-  build-on-ubuntu2004-arm64:
+  build-on-ubuntu2204-arm64:
     runs-on: ubuntu-22.04
     name: build on ubuntu-22.04 arm64
     # Run steps on a matrix of 3 arch/distro combinations
@@ -141,7 +157,7 @@ jobs:
 
           # Pass some environment variables to the container
           env: | # YAML, but pipe character is necessary
-            artifact_name: ecapture-${{ steps.get_tags.outputs.VERSION }}
+            artifact_name: ecapture-${{ github.ref_name }}
 
           # The shell to run commands with in the container
           shell: /bin/sh
@@ -155,10 +171,19 @@ jobs:
           install: |
             uname -a
             apt-get update
-            apt-get install --yes wget git build-essential pkgconf libelf-dev llvm-12 clang-12  linux-tools-generic linux-tools-common flex bison
+            apt-get install --yes wget git build-essential pkgconf libelf-dev llvm-12 clang-12 linux-tools-generic linux-tools-common flex bison file gcc-x86-64-linux-gnu libssl-dev bc linux-source
             wget https://go.dev/dl/go1.21.0.linux-arm64.tar.gz
             rm -rf /usr/local/go
             tar -C /usr/local -xzf go1.21.0.linux-arm64.tar.gz
+            cd /usr/src
+            source_file=$(find . -maxdepth 1 -name "*linux-source*.tar.bz2")
+            source_dir=$(echo "$source_file" | sed 's/\.tar\.bz2//g')
+            tar -xf $source_file
+            cd $source_dir
+            test -f .config || make oldconfig > /dev/null
+            make ARCH=x86 CROSS_COMPILE=x86_64-linux-gnu- prepare V=0 > /dev/null
+            make prepare V=0 > /dev/null
+            ls -al /usr/src/$source_dir
           # Produce a binary artifact and place it in the mounted volume
           run: |
             uname -a
@@ -176,64 +201,21 @@ jobs:
             cat /proc/1/cgroup
             echo "cat /proc/1/sched:"
             cat /proc/1/sched
+            cd /usr/src
+            source_file=$(find . -maxdepth 1 -name "*linux-source*.tar.bz2")
+            source_dir=$(echo "$source_file" | sed 's/\.tar\.bz2//g')
             git config --global --add safe.directory /source_code
             cd /source_code
-            echo "-------------------start: Create ecapture.tar.gz of Linux -------------------"
-            make env
+            echo "-------------------start: Build CO-RE Linux (include non-CO-RE)-------------------"
+            KERN_HEADERS=/usr/src/$source_dir make env
             make clean
-            make
-            echo "-------------------ecapture --help-------------------"
+            KERN_HEADERS=/usr/src/$source_dir make
             bin/ecapture -v
-            echo "-------------------create tar.gz file-------------------"
-            UNAME_M=`uname -m`
-            OUTPUT_DIR="./bin"
-            SNAPSHOT_VERSION=${{ steps.get_tags.outputs.VERSION }}
-            echo "#${SNAPSHOT_VERSION}#"
-            if [ -z "${SNAPSHOT_VERSION}" ]; then
-              SNAPSHOT_VERSION="v0.0.0"
-            fi
-            TAR_DIR=ecapture-${SNAPSHOT_VERSION}-linux-${UNAME_M}
-            RELEASE_NOTES=${OUTPUT_DIR}/release_notes.txt
-            OUT_ARCHIVE=${OUTPUT_DIR}/${artifact_name}-linux-${{ matrix.arch }}.tar.gz
-            mkdir -p ${TAR_DIR}
-            cp LICENSE ${TAR_DIR}/LICENSE
-            cp CHANGELOG.md ${TAR_DIR}/CHANGELOG.md
-            cp README.md ${TAR_DIR}/README.md
-            cp README_CN.md ${TAR_DIR}/README_CN.md
-            cp ${OUTPUT_DIR}/ecapture ${TAR_DIR}/ecapture
-            cp ${OUTPUT_DIR}/release_notes.txt ${TAR_DIR}/release_notes.txt
-            tar  -czf ${OUT_ARCHIVE} ${TAR_DIR}
-            cp ${OUT_ARCHIVE} "/artifacts/"
-            echo "-------------------end: Create ecapture.tar.gz of Linux -------------------"
-            echo "-------------------start: Create ecapture.tar.gz of Android kernel CO:RE -------------------"
-            make env
+            echo "-------------------start: Build non-CO-RE (Cross-Compilation) Linux -------------------"
             make clean
-            ANDROID=1 make -j2
-            echo "-------------------ecapture --help-------------------"
-            echo "bin/ecapture -v"
-            echo "-------------------create tar.gz file-------------------"
-            UNAME_M=`uname -m`
-            OUTPUT_DIR="./bin"
-            SNAPSHOT_VERSION=${{ steps.get_tags.outputs.VERSION }}
-            echo "#${SNAPSHOT_VERSION}#"
-            if [ -z "${SNAPSHOT_VERSION}" ]; then
-              SNAPSHOT_VERSION="v0.0.0"
-            fi
-            TAR_DIR=ecapture-${SNAPSHOT_VERSION}-android_gki-${UNAME_M}
-            RELEASE_NOTES=${OUTPUT_DIR}/release_notes.txt
-            OUT_ARCHIVE=${OUTPUT_DIR}/${artifact_name}-android_core-${{ matrix.arch }}.tar.gz
-            mkdir -p ${TAR_DIR}
-            cp LICENSE ${TAR_DIR}/LICENSE
-            cp CHANGELOG.md ${TAR_DIR}/CHANGELOG.md
-            cp README.md ${TAR_DIR}/README.md
-            cp README_CN.md ${TAR_DIR}/README_CN.md
-            cp ${OUTPUT_DIR}/ecapture ${TAR_DIR}/ecapture
-            cp ${OUTPUT_DIR}/release_notes.txt ${TAR_DIR}/release_notes.txt
-            tar  -czf ${OUT_ARCHIVE} ${TAR_DIR}
-            cp ${OUT_ARCHIVE} "/artifacts/"
-            echo "-------------------end: Create ecapture.tar.gz of Android kernel CO:RE -------------------"
-            echo "Produced artifact at /artifacts/${artifact_name}"
-
+            KERN_HEADERS=/usr/src/$source_dir CROSS_ARCH=amd64 make env
+            KERN_HEADERS=/usr/src/$source_dir CROSS_ARCH=amd64 make nocore -j8
+            file bin/ecapture
       - name: Show the artifact
         # Items placed in /artifacts in the container will be in
         # ${PWD}/artifacts on the host.

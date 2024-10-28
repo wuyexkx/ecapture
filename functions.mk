@@ -45,11 +45,32 @@ define allow-override
 endef
 
 define gobuild
+	CGO_ENABLED=1 \
 	CGO_CFLAGS='-O2 -g -gdwarf-4 -I$(CURDIR)/lib/libpcap/' \
-	CGO_LDFLAGS='-O2 -g -L$(CURDIR)/lib/libpcap -lpcap -static' \
-	GOOS=linux GOARCH=$(GOARCH) CC=$(CMD_CLANG) \
-	$(CMD_GO) build -tags $(TARGET_TAG) -ldflags "-w -s -X 'ecapture/cli/cmd.GitVersion=$(TARGET_TAG)_$(UNAME_M):$(VERSION):$(VERSION_FLAG)' -X 'main.enableCORE=$(ENABLECORE)'" -o $(OUT_BIN)
-    @if [$(1) -eq 0 ]; then
-		$(OUT_BIN) -v
-    fi
+	CGO_LDFLAGS='-O2 -g -L$(CURDIR)/lib/libpcap/ -lpcap -static' \
+	GOOS=linux GOARCH=$(GOARCH) CC=$(CMD_CC_PREFIX)$(CMD_CC) \
+	$(CMD_GO) build -tags '$(TARGET_TAG),netgo' -ldflags "-w -s -X 'github.com/gojue/ecapture/cli/cmd.GitVersion=$(TARGET_TAG)_$(GOARCH):$(VERSION_NUM):$(VERSION_FLAG)' -linkmode=external -extldflags -static " -o $(OUT_BIN)
+	$(CMD_FILE) $(OUT_BIN)
+endef
+
+
+define CHECK_IS_NON_CORE
+$(if $(filter $(1),$(2)),-nocore,)
+endef
+
+# build and tar
+define release_tar
+	$(call allow-override,CORE_PREFIX,$(call CHECK_IS_NON_CORE,$(2),nocore))
+	$(call allow-override,TAR_DIR,ecapture-$(DEB_VERSION)-$(1)-$(GOARCH)$(CORE_PREFIX))
+	$(call allow-override,OUT_ARCHIVE,$(OUTPUT_DIR)/$(TAR_DIR).tar.gz)
+	$(CMD_MAKE) clean
+	ANDROID=$(ANDROID) $(CMD_MAKE) $(2)
+	# create the tar ball and checksum files
+	$(CMD_MKDIR) -p $(TAR_DIR)
+	$(CMD_CP) LICENSE $(TAR_DIR)/LICENSE
+	$(CMD_CP) CHANGELOG.md $(TAR_DIR)/CHANGELOG.md
+	$(CMD_CP) README.md $(TAR_DIR)/README.md
+	$(CMD_CP) README_CN.md $(TAR_DIR)/README_CN.md
+	$(CMD_CP) $(OUTPUT_DIR)/ecapture $(TAR_DIR)/ecapture
+	$(CMD_TAR) -czf $(OUT_ARCHIVE) $(TAR_DIR)
 endef

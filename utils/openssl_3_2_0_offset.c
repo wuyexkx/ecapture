@@ -12,6 +12,7 @@
     X(ssl_connection_st, s3)                        \
     X(ssl_connection_st, rbio)                      \
     X(ssl_connection_st, wbio)                      \
+    X(ssl_connection_st, server)                    \
     X(ssl_session_st, master_key)                   \
     X(ssl_connection_st, s3.client_random)          \
     X(ssl_session_st, cipher)                       \
@@ -23,6 +24,8 @@
     X(ssl_connection_st, server_app_traffic_secret) \
     X(ssl_connection_st, exporter_master_secret)    \
     X(bio_st, num)                                  \
+    X(bio_st, method)                               \
+    X(bio_method_st, type)                          \
     X(quic_conn_st, tls)
 
 void toUpper(char *s) {
@@ -49,8 +52,7 @@ void format(char *struct_name, char *field_name, size_t offset) {
 int main() {
     printf("/* OPENSSL_VERSION_TEXT: %s */\n", OPENSSL_VERSION_TEXT);
     printf("/* OPENSSL_VERSION_NUMBER: %ld */\n\n", OPENSSL_VERSION_NUMBER);
-#define X(struct_name, field_name) \
-    format(#struct_name, #field_name, offsetof(struct struct_name, field_name));
+#define X(struct_name, field_name) format(#struct_name, #field_name, offsetof(struct struct_name, field_name));
     SSL_STRUCT_OFFSETS
 #undef X
 

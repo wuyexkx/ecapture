@@ -1,7 +1,162 @@
-# v0.7.6 (2024-03-30)
+# v0.8.9 (2024-10-26)
+
 ## What's Changed
 
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.8...v0.8.9
+<hr>
+
+# v0.8.8 (2024-10-09)
+## What's Changed
+
+* Fix the bug that the arm64 version cannot work (#649) by @cfc4n in https://github.com/gojue/ecapture/pull/648
+* builder: docerk build error: header not found by @cfc4n in https://github.com/gojue/ecapture/pull/648
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.7...v0.8.8
+<hr>
+
+# v0.8.7 (2024-10-07)
+## What's Changed
+
+* feat: remove tcp packet limitation by @yuweizzz in https://github.com/gojue/ecapture/pull/619
+* kern: support openssl 3.3.2/3.2.3/3.1.7/3.0.15 by @cfc4n in https://github.com/gojue/ecapture/pull/624
+* workflows: update linux source tgz file version. by @cfc4n in https://github.com/gojue/ecapture/pull/644
+* fix the issue with retrieving the return value of the Read function in the Golang TLS module. by @cfc4n
+  in https://github.com/gojue/ecapture/pull/646
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.6...v0.8.7
+<hr>
+
+# v0.8.6 (2024-09-06)
+## What's Changed
+
+* GitHub action codecov by @cfc4n in https://github.com/gojue/ecapture/pull/594
+* fix: fix undeclared identifier error when make in debug mode by @yuweizzz
+  in https://github.com/gojue/ecapture/pull/593
+* user: adjusted the timing of the display of the kernel version is too low by @cfc4n
+  in https://github.com/gojue/ecapture/pull/607
+* kern: support uid/pid filter in ebpf TC hook. by @cfc4n in https://github.com/gojue/ecapture/pull/606
+* fix: fallback to default version with warn by @xxxxxliil in https://github.com/gojue/ecapture/pull/613
+* chore: Use `-tags 'netgo'` in bulding process to avoid SIGSEGV because of the different version of glibc in dfferent
+  Linux distros by @Zheaoli in https://github.com/gojue/ecapture/pull/616
+
 ## New Contributors
+
+* @xxxxxliil made their first contribution in https://github.com/gojue/ecapture/pull/613
+* @Zheaoli made their first contribution in https://github.com/gojue/ecapture/pull/616
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.5...v0.8.6
+<hr>
+
+# v0.8.5 (2024-08-19)
+## What's Changed
+* feat: parse http2 data in text mode by @yuweizzz in https://github.com/gojue/ecapture/pull/580
+* pkg: add http2 request/response unit test. by @cfc4n in https://github.com/gojue/ecapture/pull/583
+* feat: allow capture ipv6 packet by @yuweizzz in https://github.com/gojue/ecapture/pull/586
+* workflows: remove Qodana CI workflow. by @cfc4n in https://github.com/gojue/ecapture/pull/589
+* Constant parameter notice by @cfc4n in https://github.com/gojue/ecapture/pull/591
+* user: split loggers, which are divided into loggers and event collectors by @cfc4n in https://github.com/gojue/ecapture/pull/592
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.4...v0.8.5
+<hr>
+
+# v0.8.4 (2024-07-09)
+## What's Changed
+* add possible linux kernel config path by @w568w in https://github.com/gojue/ecapture/pull/561
+* workflows: add Qodana by @cfc4n in https://github.com/gojue/ecapture/pull/563
+* fix create output.log failed. by @cfc4n in https://github.com/gojue/ecapture/pull/566
+* pkg: fix send on closed channel by @cfc4n in https://github.com/gojue/ecapture/pull/567
+* fix: DumpResponse error in HEAD request by @yuweizzz in https://github.com/gojue/ecapture/pull/572
+* fix: truncated body dump error by @yuweizzz in https://github.com/gojue/ecapture/pull/573
+* kern: support openssl 3.3.* by @cfc4n in https://github.com/gojue/ecapture/pull/575
+* kern: Adjust the timing of key acquisition to distinguish between TLS by @cfc4n in https://github.com/gojue/ecapture/pull/576
+
+## New Contributors
+* @w568w made their first contribution in https://github.com/gojue/ecapture/pull/561
+* @yuweizzz made their first contribution in https://github.com/gojue/ecapture/pull/572
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.3...v0.8.4
+<hr>
+
+# v0.8.3 (2024-06-01)
+## What's Changed
+* user: fix #553, `hashLen` is not allowed to be more than 64 bytes by @cfc4n in https://github.com/gojue/ecapture/pull/554
+* cli: update docker usage by @cfc4n in https://github.com/gojue/ecapture/pull/556
+* kern: Support for the non-Android boringssl library has been added. by @cfc4n in https://github.com/gojue/ecapture/pull/555
+* user: format clientRandom string in gotls module by @cfc4n in https://github.com/gojue/ecapture/pull/557
+* cli: support logger level by @cfc4n in https://github.com/gojue/ecapture/pull/558
+* use kprobe/__sys_connect inseated uprobe/connect. by @cfc4n in https://github.com/gojue/ecapture/pull/559
+
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.2...v0.8.3
+<hr>
+
+# v0.8.2 (2024-05-19)
+## What's Changed
+* android version compilation has failed. by @cfc4n in https://github.com/gojue/ecapture/pull/548
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.1...v0.8.2
+<hr>
+
+# v0.8.1 (2024-05-19)
+## What's Changed
+* makefile: Optimized the generation mechanism of kernel header files by @cfc4n in https://github.com/gojue/ecapture/pull/536
+* add dockerfile by @sancppp in https://github.com/gojue/ecapture/pull/537
+* cli: Use a formatted logger rs/zerolog by @cfc4n in https://github.com/gojue/ecapture/pull/539
+* utils: supported openssl 1.1.1w, 3.0.13, 3.1.5, 3.2.1 by @cfc4n in https://github.com/gojue/ecapture/pull/540
+* BPF name should be appended after _core/_noncore by @darren in https://github.com/gojue/ecapture/pull/545
+* user: fixed #542, masterkey being written to pcapng multiple times. by @cfc4n in https://github.com/gojue/ecapture/pull/546
+* user:  prepare for service-oriented architecture. by @cfc4n in https://github.com/gojue/ecapture/pull/541
+
+## New Contributors
+* @darren made their first contribution in https://github.com/gojue/ecapture/pull/545
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.8.0...v0.8.1
+<hr>
+
+# v0.8.0 (2024-05-04)
+## 🚀 Breaking Changes
+- for User: No need to distinguish between CO-RE and non-CO-RE versions, automatically identified by eCapture.
+  - 无需区分CO-RE和non-CO-RE版本，由eCapture自动识别。
+- for Developer: Supports cross-compilation for both amd64 and arm64 CPU architectures, building CO-RE and non-CO-RE versions respectively.
+  - 支持在amd64\arm64两个CPU架构下的交叉编译，分别构建CO-RE和non-CO-RE版本
+
+## What's Changed
+* chore: rename ecapture module name. by @cfc4n in https://github.com/gojue/ecapture/pull/530
+* Fix keylog mode not working correctly on certain OpenSSL versions by @AmazingPP in https://github.com/gojue/ecapture/pull/534
+* feat: support CORE and non-CORE mode in one by @cfc4n in https://github.com/gojue/ecapture/pull/532
+* workflows: change steps.get_tags.outputs.VERSION to github.ref_name by @sancppp in https://github.com/gojue/ecapture/pull/535
+
+## New Contributors
+* @AmazingPP made their first contribution in https://github.com/gojue/ecapture/pull/534
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.7.7...v0.8.0
+<hr>
+
+# v0.7.7 (2024-04-21)
+## What's Changed
+* [Fix] get textStart from pclnTable by @wlingze in https://github.com/gojue/ecapture/pull/516
+* fix: amd64, offset read error issue for PIE executable. PR #516 by @cfc4n in https://github.com/gojue/ecapture/pull/517
+* makefile: used CC=$(CROSS_COMPILE)gcc for CGO compile. by @cfc4n in https://github.com/gojue/ecapture/pull/519
+* user: return error when detect openssl version failed. by @cfc4n in https://github.com/gojue/ecapture/pull/521
+* user : fixed the invalid address reference of the SSL_in_before symbol OpenSSL 1.0.2k. by @cfc4n in https://github.com/gojue/ecapture/pull/520
+* feat: support cross-compilation for workflows. by @cfc4n in https://github.com/gojue/ecapture/pull/523
+* readme: improve English README.md translation and add TOCs by @zhoukuncheng in https://github.com/gojue/ecapture/pull/525
+* build(deps): bump golang.org/x/net from 0.17.0 to 0.23.0 by @dependabot in https://github.com/gojue/ecapture/pull/528
+
+## New Contributors
+* @wlingze made their first contribution in https://github.com/gojue/ecapture/pull/516
+* @zhoukuncheng made their first contribution in https://github.com/gojue/ecapture/pull/525
+
+**Full Changelog**: https://github.com/gojue/ecapture/compare/v0.7.6...v0.7.7
+<hr>
+
+# v0.7.6 (2024-03-30)
+## What's Changed
+* fix #500 to avoid potential hang and event loss by @ruitianzhong in https://github.com/gojue/ecapture/pull/501
+* fix issue#504 by @sancppp in https://github.com/gojue/ecapture/pull/506
+* tentative fix to address bash problem #490 by @ruitianzhong in https://github.com/gojue/ecapture/pull/510
+* Fix cant found RET offset in gotls mode. fix #502. by @cfc4n in https://github.com/gojue/ecapture/pull/512
+
 
 **Full Changelog**: https://github.com/gojue/ecapture/compare/v0.7.5...v0.7.6
 <hr>
@@ -696,7 +851,7 @@ Quick Guide:
 
 ## mysqld 模块
 - 支持mysql5.6的mariaDB数据库的查询审计
-  - 默认path目录为/usr/sbin/mariadb 。 
+  - 默认path目录为/usr/sbin/mariadb 。
   - 支持function name、offset两个参数自定义。
 
 <hr>

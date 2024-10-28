@@ -15,12 +15,12 @@
 package module
 
 import (
-	"ecapture/user/config"
-	"ecapture/user/event"
 	"errors"
 	"fmt"
 	"github.com/cilium/ebpf"
 	manager "github.com/gojue/ebpfmanager"
+	"github.com/gojue/ecapture/user/config"
+	"github.com/gojue/ecapture/user/event"
 	"golang.org/x/sys/unix"
 	"math"
 	"path"
@@ -50,9 +50,8 @@ func (m *MOpenSSLProbe) setupManagersKeylog() error {
 		}
 	}
 
-	m.logger.Printf("%s\tHOOK type:%d, binrayPath:%s\n", m.Name(), m.conf.(*config.OpensslConfig).ElfType, binaryPath)
-	m.logger.Printf("%s\tHook masterKey function:%s\n", m.Name(), m.masterHookFuncs)
-
+	m.logger.Info().Str("binrayPath", binaryPath).Uint8("ElfType", m.conf.(*config.OpensslConfig).ElfType).
+		Strs("masterHookFuncs", m.masterHookFuncs).Msg("HOOK type:Openssl elf")
 	m.bpfManager = &manager.Manager{
 		Maps: []*manager.Map{
 			{

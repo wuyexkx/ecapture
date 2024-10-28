@@ -15,7 +15,8 @@
 package config
 
 import (
-	"ecapture/pkg/util/kernel"
+	"encoding/json"
+	"github.com/gojue/ecapture/pkg/util/kernel"
 	"os"
 )
 
@@ -24,14 +25,20 @@ type IConfig interface {
 	GetPid() uint64
 	GetUid() uint64
 	GetHex() bool
+	GetBTF() uint8
 	GetDebug() bool
 	SetPid(uint64)
 	SetUid(uint64)
 	SetHex(bool)
+	SetBTF(uint8)
 	SetDebug(bool)
+	SetAddrType(uint8)
+	SetEventCollectorAddr(string)
+	GetEventCollectorAddr() string
 	GetPerCpuMapSize() int
 	SetPerCpuMapSize(int)
 	EnableGlobalVar() bool //
+	Bytes() []byte
 }
 
 const (
@@ -42,62 +49,102 @@ const (
 	TlsCaptureModelKeylog = "keylog"
 )
 
-type eConfig struct {
-	Pid           uint64
-	Uid           uint64
-	PerCpuMapSize int // ebpf map size for per Cpu.   see https://github.com/gojue/ecapture/issues/433 .
-	IsHex         bool
-	Debug         bool
+const (
+	BTFModeAutoDetect = 0
+	BTFModeCore       = 1
+	BTFModeNonCore    = 2
+)
+
+type BaseConfig struct {
+	Pid    uint64 `json:"pid"`
+	Uid    uint64 `json:"uid"`
+	Listen string `json:"listen"` // listen address, default: 127.0.0.1:28256
+
+	// mapSizeKB
+	PerCpuMapSize      int    `json:"per_cpu_map_size"` // ebpf map size for per Cpu.   see https://github.com/gojue/ecapture/issues/433 .
+	IsHex              bool   `json:"is_hex"`
+	Debug              bool   `json:"debug"`
+	BtfMode            uint8  `json:"btf_mode"`
+	LoggerAddr         string `json:"logger_addr"`          // logger address
+	LoggerType         uint8  `json:"logger_type"`          // 0:stdout, 1:file, 2:tcp
+	EventCollectorAddr string `json:"event_collector_addr"` // the server address that receives the captured event
 }
 
-func (c *eConfig) GetPid() uint64 {
+func (c *BaseConfig) GetPid() uint64 {
 	return c.Pid
 }
 
-func (c *eConfig) GetUid() uint64 {
+func (c *BaseConfig) GetUid() uint64 {
 	return c.Uid
 }
 
-func (c *eConfig) GetDebug() bool {
+func (c *BaseConfig) GetDebug() bool {
 	return c.Debug
 }
 
-func (c *eConfig) GetHex() bool {
+func (c *BaseConfig) GetHex() bool {
 	return c.IsHex
 }
 
-func (c *eConfig) SetPid(pid uint64) {
+func (c *BaseConfig) SetPid(pid uint64) {
 	c.Pid = pid
 }
 
-func (c *eConfig) SetUid(uid uint64) {
+func (c *BaseConfig) SetUid(uid uint64) {
 	c.Uid = uid
 }
 
-func (c *eConfig) SetDebug(b bool) {
+func (c *BaseConfig) SetEventCollectorAddr(addr string) {
+	c.EventCollectorAddr = addr
+}
+
+func (c *BaseConfig) GetEventCollectorAddr() string {
+	return c.EventCollectorAddr
+}
+
+func (c *BaseConfig) SetAddrType(t uint8) {
+	c.LoggerType = t
+}
+
+func (c *BaseConfig) SetDebug(b bool) {
 	c.Debug = b
 }
 
-func (c *eConfig) SetHex(isHex bool) {
+func (c *BaseConfig) SetHex(isHex bool) {
 	c.IsHex = isHex
 }
 
-func (c *eConfig) GetPerCpuMapSize() int {
+func (c *BaseConfig) SetBTF(BtfMode uint8) {
+	c.BtfMode = BtfMode
+}
+
+func (c *BaseConfig) GetBTF() uint8 {
+	return c.BtfMode
+}
+
+func (c *BaseConfig) GetPerCpuMapSize() int {
 	return c.PerCpuMapSize
 }
 
-func (c *eConfig) SetPerCpuMapSize(size int) {
+func (c *BaseConfig) SetPerCpuMapSize(size int) {
 	c.PerCpuMapSize = size * os.Getpagesize()
 }
 
-func (c *eConfig) EnableGlobalVar() bool {
+func (c *BaseConfig) EnableGlobalVar() bool {
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		//log.Fatal(err)
 		return true
 	}
 	if kv < kernel.VersionCode(5, 2, 0) {
 		return false
 	}
 	return true
+}
+
+func (c *BaseConfig) Bytes() []byte {
+	b, e := json.Marshal(c)
+	if e != nil {
+		return []byte{}
+	}
+	return b
 }

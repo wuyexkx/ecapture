@@ -15,12 +15,12 @@
 package module
 
 import (
-	"ecapture/user/config"
-	"ecapture/user/event"
 	"errors"
 	"fmt"
 	"github.com/cilium/ebpf"
 	manager "github.com/gojue/ebpfmanager"
+	"github.com/gojue/ecapture/user/config"
+	"github.com/gojue/ecapture/user/event"
 	"golang.org/x/sys/unix"
 	"math"
 	"strings"
@@ -54,12 +54,12 @@ func (g *GoTLSProbe) setupManagersText() error {
 		buildInfo.WriteString("=")
 		buildInfo.WriteString(setting.Value)
 	}
-	g.logger.Printf("%s\teBPF Function Name:%s, isRegisterABI:%t\n", g.Name(), fn, g.isRegisterABI)
-	g.logger.Printf("%s\tGolang buildInfo version:%s, Params: %s\n", g.Name(), gotlsConf.Buildinfo.GoVersion, buildInfo.String())
-
+	g.logger.Info().Str("binrayPath", g.path).Bool("isRegisterABI", g.isRegisterABI).
+		Str("GoVersion", gotlsConf.Buildinfo.GoVersion).
+		Str("buildInfo", buildInfo.String()).Msg("HOOK type:Golang elf")
 	if g.conf.(*config.GoTLSConfig).IsPieBuildMode {
 		// buildmode pie is enabled.
-		g.logger.Printf("%s\tGolang elf buildmode with pie\n", g.Name())
+		g.logger.Warn().Msg("Golang elf buildmode with pie")
 	}
 	g.bpfManager = &manager.Manager{
 		Probes: []*manager.Probe{
@@ -80,9 +80,10 @@ func (g *GoTLSProbe) setupManagersText() error {
 
 	readOffsets := g.conf.(*config.GoTLSConfig).ReadTlsAddrs
 	//g.bpfManager.Probes = []*manager.Probe{}
+	g.logger.Info().Str("function", readFn).
+		Str("offsets", fmt.Sprintf("%v", readOffsets)).Msg("golang uretprobe added.")
 	for _, v := range readOffsets {
 		var uid = fmt.Sprintf("%s_%d", readFn, v)
-		g.logger.Printf("%s\tadd uretprobe function :%s, offset:0x%X\n", g.Name(), config.GoTlsReadFunc, v)
 		g.bpfManager.Probes = append(g.bpfManager.Probes, &manager.Probe{
 			Section:          readSec,
 			EbpfFuncName:     readFn,

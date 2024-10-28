@@ -22,8 +22,8 @@ import (
 	"path"
 	"strings"
 
-	"ecapture/user/config"
-	"ecapture/user/event"
+	"github.com/gojue/ecapture/user/config"
+	"github.com/gojue/ecapture/user/event"
 
 	"github.com/cilium/ebpf"
 	manager "github.com/gojue/ebpfmanager"
@@ -75,10 +75,9 @@ func (m *MOpenSSLProbe) setupManagersPcap() error {
 	}
 
 	pcapFilter := m.conf.(*config.OpensslConfig).PcapFilter
-	m.logger.Printf("%s\tHOOK type: %d, binrayPath: %s\n", m.Name(), m.conf.(*config.OpensslConfig).ElfType, binaryPath)
-	m.logger.Printf("%s\tPcapFilter: %s\n", m.Name(), pcapFilter)
-	m.logger.Printf("%s\tIfname: %s, Ifindex: %d\n", m.Name(), m.ifName, m.ifIdex)
-	m.logger.Printf("%s\tHook masterKey function: %s\n", m.Name(), m.masterHookFuncs)
+	m.logger.Info().Str("binrayPath", binaryPath).Str("IFname", m.ifName).Int("IFindex", m.ifIdex).
+		Str("PcapFilter", pcapFilter).Uint8("ElfType", m.conf.(*config.OpensslConfig).ElfType).Msg("HOOK type:Openssl elf")
+	m.logger.Info().Strs("Functions", m.masterHookFuncs).Msg("Hook masterKey function")
 
 	// create pcapng writer
 	netIfs, err := net.Interfaces()
@@ -124,6 +123,11 @@ func (m *MOpenSSLProbe) setupManagersPcap() error {
 				EbpfFuncName:     "tcp_sendmsg",
 				Section:          "kprobe/tcp_sendmsg",
 				AttachToFuncName: "tcp_sendmsg",
+			},
+			{
+				EbpfFuncName:     "udp_sendmsg",
+				Section:          "kprobe/udp_sendmsg",
+				AttachToFuncName: "udp_sendmsg",
 			},
 		},
 

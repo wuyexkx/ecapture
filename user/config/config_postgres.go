@@ -18,6 +18,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 
@@ -25,7 +26,7 @@ import (
 )
 
 type PostgresConfig struct {
-	eConfig
+	BaseConfig
 	PostgresPath string `json:"postgresPath"`
 	FuncName     string `json:"funcName"`
 }
@@ -49,4 +50,12 @@ func (pc *PostgresConfig) Check() error {
 
 	pc.FuncName = "exec_simple_query"
 	return nil
+}
+
+func (pc *PostgresConfig) Bytes() []byte {
+	b, e := json.Marshal(pc)
+	if e != nil {
+		return []byte{}
+	}
+	return b
 }
